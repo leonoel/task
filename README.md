@@ -1,15 +1,22 @@
 # task
 
-The purpose of this specification is to provide a Clojure standard to describe asynchronous computations in a functional, generic, composable and portable way.
+The purpose of the specification is to define a standard to describe generic computations in the Clojure language.
 The toolkit is provided as a proof-of-concept to perform basic operations on tasks, however it is not a mandatory requirement to define your own handlers according to the semantics provided by the specification.
 
-## Rationale
+## Goals, design and scope
 
-
-* generic : relying on conventions around language primitives simplifies design and promotes various compliant implementations.
+### What we want
+features : asynchronicity, single result, error handling, cancellation
+Relying on conventions around language primitives simplifies design and promotes various compliant implementations.
 * functional : futures and channels, being stateful primitives, promote imperative style. The only way to deal with effects in a functional style is to wrap them in a lazy construct.
 * composable : a small set of combinators should be sufficient to arbitrarily compose simple tasks, at least on par with various kinds of future/promise
 * portable : semantics must not rely on specificities of various host platforms, especially concerning threading policy.
+
+### What we have
+* On JVM Clojure, blocking futures provide a convenient way to deal with pending computations. They lack portability due to JS single-threaded model.
+* To tackle this problem, various improvements were designed, adding ability to register callbacks to allow non-blocking composition.
+* core.async is commonly used to solve async problems. go macro gives an elegant solution to callback hell and channels may substitute futures to represent pending operations, but errors have no special semantics and must be handled manually.
+
 
 ## Specification
 
