@@ -107,11 +107,11 @@ If host platform supports thread suspension, `(do!! task)` realizes a task synch
 ```
 
 #### Writing custom combinators
-Combinators described above, except for the most trivial ones, are built with the `(task boot & args)` function, which returns a task backed by an event loop. This helper provides a basis for the creation of asynchronous stateful processes, enforcing sequential handling of possibly concurrent events.
+Combinators described above are built with the `(task boot & args)` function, returning a task backed by an event loop. This helper provides a basis for definition of asynchronous stateful processes, enforcing sequential handling of possibly concurrent events.
 
-Function boot is first called with a fresh event wrapper along with optional extra arguments. The boot function must return the handler function for the cancellation signal of the returned task. The event wrapper is a 1-arity function taking a handler function and returning a signal function. The signal function is thread-safe, non-blocking, non-throwing, returns nil, and its effect is to schedule the execution of the handler function in the event loop.
+When the task is started, boot function is first called with a fresh event wrapper along with optional extra arguments, and is expected to return the handler function for the task's cancellation signal. The event wrapper is a 1-arity function taking a handler function and returning a signal function. The signal function is thread-safe, non-blocking, non-throwing, returns nil, and its effect is to schedule the execution of the handler function in the event loop. A handler function is called at most once for each call to its signal function.
 
-A handler function throwing an exception indicates task failure, meaning subsequent events will stop beeing processed and the failure continuation will be called. A handler function may return the sentinel object `pending` to indicate the event loop must continue to proceed events. Any other returned value indicates task success, meaning subsequent events will stop beeing processed and the success continuation will be called. A handler function is called at most once for each call to its signal function.
+The result of a handler function defines the task's current status. Throwing an exception signals task failure, returning the sentinel value `pending` signals the task is still waiting for an event, returning any other value signals task success. Success and failure trigger a call to their associated continuation and stop event processing, discarding subsequent events.
 
 Events occuring during execution of the boot function are delayed until the boot function returns. All handler functions wrapped by the same event wrapper will be run on a cpu-bound thread pool in a sequential way, so they may safely share unsynchronized mutable state.
 
