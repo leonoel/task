@@ -1,12 +1,14 @@
 # task
 
+This project aims to define a standard to represent generic computations as values in Clojure. The goal is to promote functional programming by allowing various composition strategies around the unified *task* abstraction. A task is the definition of a process that can be started, eventually terminating with success or failure, producing a single value, and able to receive interruption requests. Tasks may be asynchronous, a mandatory requirement on single-threaded host platforms (e.g js engines, gui frameworks) and a good practice when high scalability is required.
+
+Along with the [specification](##Specification), a [toolkit](##Toolkit) is provided as a reference implementation to perform basic operations on tasks.
+
 ## Rationale
 
-The purpose of the specification is to define a standard with unambiguous semantics to describe generic computations as values. The goal is to promote functional programming by allowing various composition strategies around the unified concept of *task*. A task is a runnable process eventually terminating with success or failure and yielding a single value. Running tasks must be able to receive interruption requests and are allowed to perform asynchronous operations, a mandatory requirement on single-threaded host platforms (e.g js engines, gui frameworks) and a good practice when high scalability is required.
-
-This initiative is motivated by the lack of consistency of current popular solutions to this problem in clojure ecosystem, including :
-* futures, representing eager and memoized computations as a stateful object. clojure.core future supports composition via blocking deref, which relies on host platform's ability to suspend threads and thus cannot be ported to clojurescript. Various improvements over the same idea were made, adding ability to register callbacks in order to allow non-blocking composition with functional-style operators.
-* core.async, a framework providing an universal primitive to model backpressured streams of values across asynchronous boundaries, and some syntactic sugar to represent asynchronous processing logic in sequential imperative style. It is often considered as the default tool to solve callback hell in clojure, and is commonly used as an alternative to futures to represent single result pending computations, which has led to creative workarounds to compensate for lack of error handling and cancellation mechanism. This situation is unsatisfactory, because a heavy dependency is still needed for every part of the program designed this way, although most of the time the backpressured streaming feature of core.async is not needed at all.
+This initiative is motivated by the lack of consistency of currently popular solutions to this problem in clojure ecosystem, including :
+* futures, representing eager and memoized computations as a stateful object and supporting composition. clojure.core future relies on host platform's ability to suspend threads to provide compositionality, which makes it unreachable to javascript hosts. Various improvements over the same idea were made in Java and Javascript, most notably the ability to register callbacks allowing non-blocking composition with functional-style operators.
+* core.async, a framework providing an universal abstraction to model backpressured streams of values across asynchronous boundaries, and some syntactic sugar to represent asynchronous processing logic in sequential imperative style. It is often considered as the default tool to solve callback hell in clojure, and is commonly used as an alternative to futures to represent single result pending computations, which has led to creative workarounds to compensate for lack of error handling and cancellation mechanism. This situation is unsatisfactory, because a heavy dependency is still needed for every part of the program designed this way, although in many cases the backpressured streaming feature of core.async is not needed at all.
 
 Moreover, neither channels nor futures are pure values, and thus contaminate other parts of the program by promoting imperative programming. Actually, the only way to represent effects as values is to delay their execution by wrapping them in a lazy construct.
 
@@ -15,16 +17,15 @@ Moreover, neither channels nor futures are pure values, and thus contaminate oth
 All effects are represented as clojure functions, as they are well defined and generic enough to represent any computation (including impure ones). Choosing to rely on a language convention instead of introducing new types or protocols simplifies design and promotes development of various compliant implementations.
 
 ### Task
-A task is a 2-arity function taking a success continuation as first argument and a failure continuation as second argument. It must return a canceller, must not throw and must not block the calling thread. A call to a task function starts a computation performing side effects, eventually calling one of both continuations with a result.
+A task is a 2-arity function taking a success continuation as first argument and a failure continuation as second argument. It must return a canceller, must not throw and must not block the calling thread. A call to a task function starts a computation performing side effects, eventually calling one of the two continuations with a result.
 
 ### Continuation
-A continuation is a 1-arity function taking the result of the task as argument. Its return value should be ignored, it must not throw and must not block the calling thread. The first call to any of both continuations of a task notify termination to the caller, and subsequent calls must be ignored. The task caller should expect continuations to be called in the same thread or another one.
+A continuation is a 1-arity function taking the result of the task as argument. Its return value should be ignored, it must not throw and must not block the calling thread. The first call to any of both continuations of a task notify termination to the caller, and subsequent calls must be ignored. The task caller should expect continuations to be called synchronously or asynchronously.
 
 ### Canceller
 A canceller is a 0-arity function. Its return value should be ignored, must not throw and must not block the calling thread. A call to this function notifies the task runner that the caller is not expecting a result anymore. If the task is still pending, then it must be cancelled if possible and allocated resources must be cleaned up. If the task is already terminated or cancelled, then the cancellation must be ignored.
 
 ## Toolkit
-The toolkit is provided as a proof-of-concept to perform basic operations on tasks.
 
 ### Maturity
 Alpha. Users should expect breaking changes in future versions.
@@ -38,7 +39,7 @@ Leiningen coordinates :
 ```
 
 ### Support
-All functions and macros work the same on Clojure and Clojurescript, except for `effect-off` and `do!!` not working in Clojurescript because they require thread suspension.
+All functions and macros work the same way on Clojure and Clojurescript, except for `effect-off` and `do!!` not working in Clojurescript due to host thread suspension requirement.
 
 ### Documentation
 The API stands in the single namespace `task.core`.
@@ -65,7 +66,7 @@ A synchronous effect can be wrapped in a task with macro `(effect & body)`, retu
 
 Blocking effects should be wrapped using macro `(effect-off & body)`, performing the evaluation on an unbounded thread pool.
 ```clj
-((t/effect-off (slurp "http://clojure.org")) prn err)    ;; prints clojure.org home page
+((t/effect-off (slurp "https://clojure.org")) prn err)    ;; prints clojure.org home page
 ```
 
 `(timeout delay value)` returns a task succeeding with a given value after a given delay (in milliseconds).
