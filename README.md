@@ -43,67 +43,76 @@ The API stands in the single namespace `task.core`.
 (require '[task.core :as t])
 ```
 
+### Support
+All functions and macros work the same on Clojure and Clojurescript, except for `effect-off` and `do!!` not working in Clojurescript because they require thread suspension.
+
 #### Task creation & usage
-`(just & body)` macro takes a body of expressions and returns the task evaluating these expressions synchronously, completing with the value of last expression.
+`(success value)` and `(failure error)` return tasks completing immediately with given result.
 ```clj
-(def random (t/just (rand)))
-(random println println)           ;; prints a random number
-(random println println)           ;; prints another random number
+(defn err [e] (binding [*out* *err*] (prn e)))
+((t/success 42) prn err)                                     ;; prints 42 on standard output
+((t/failure (ex-info "Something went wrong." {})) prn err)   ;; prints exception info on standard error
 ```
 
-Tasks are lazy by default, but can be realized and memoized with `(do! task)` to provide future-like behaviour.
+Because tasks are just functions, many asynchronous APIs can be made task-compliant simply by returning a 2-arity function starting the process using input continuations as callbacks and returning a canceller.
+
+A synchronous effect can be wrapped in a task with macro `(effect & body)`, returning a task scheduling the evaluation the body in a cpu-bound thread pool and completing with the value of last expression.
 ```clj
-(def not-so-random (t/do! (t/just (rand))))
-(not-so-random println println)    ;; prints a random number
-(not-so-random println println)    ;; prints the same number
+(def random (t/effect (rand)))
+(random prn err)           ;; prints a random number
+(random prn err)           ;; prints another random number
 ```
 
-If host platform supports thread suspension, `(do!! task)` realizes a task synchronously, blocking calling thread until completion.
+Blocking effects should be wrapped using macro `(effect-off & body)`, performing the evaluation on an unbounded thread pool.
 ```clj
-(def random (t/just (rand)))
-(t/do!! random)                    ;; returns a random number
+((t/effect-off (slurp "http://clojure.org")) prn err)    ;; prints clojure.org home page
 ```
 
 `(timeout delay value)` returns a task succeeding with a given value after a given delay (in milliseconds).
 ```clj
-(def delayed (t/timeout 1000 42))
-(delayed println println)          ;; prints 42 after 1 second
+((t/timeout 1000 42) prn err)          ;; prints 42 after 1 second
+```
+
+Tasks are lazy by default, but can be realized and memoized with `(do! task)` to provide future-like behaviour.
+```clj
+(def not-so-random (t/do! random))
+(not-so-random prn err)                ;; prints a random number
+(not-so-random prn err)                ;; prints the same number
+```
+
+`(do!! task)` realizes a task synchronously, blocking calling thread until completion.
+```clj
+(t/do!! random)                        ;; returns a random number
 ```
 
 #### Basic task composition
-`(zip f & tasks)` returns a task running multiple tasks in parallel, then merging results with function f. If any of input tasks fails, others are cancelled and error is propagated to output task.
+`(join f & tasks)` returns a task running multiple tasks in parallel, then merging results with function f. If any of input tasks fails, others are cancelled and error is propagated to output task.
 ```clj
-(def parallel (t/zip * (t/timeout 1000 6) (t/timeout 1000 7)))
-(parallel println println)         ;; prints 42 after 1 second
+(t/do!! (t/join * (t/timeout 1000 6) (t/timeout 1000 7)))               ;; returns 42 after 1 second
 ```
 
-`(bind task f & args)` returns a task running given task, then if successful passing result to function f along with optional extra arguments. f must return a task that will be runned to yield the final result.
+`(race & tasks)` returns a task running multiple tasks in parallel, completing with first succeeding result and cancelling late tasks.
 ```clj
-(def sequential (t/bind (t/timeout 1000 6) #(t/timeout 1000 (* % (inc %)))))
-(sequential println println)    ;; prints 42 after 2 seconds
+(t/do!! (t/race (t/timeout 1000 :turtle) (t/timeout 2000 :rabbit)))     ;; returns :turtle after 1 second
 ```
 
-`(alet bindings & body)` macro provides let-style notation to flatten `bind` sequences.
+`(then task f & args)` returns a task running input task, then if successful passing result to function f along with optional extra arguments. f must return a task that will be runned to yield the final result.
 ```clj
-(def sequential
-  (t/alet [a (t/timeout 1000 6)
-           b (t/timeout 1000 (inc a))]
-    (* a b)))
-(sequential println println)    ;; prints 42 after 2 seconds
+(t/do!! (t/then (t/timeout 1000 6) #(t/timeout 1000 (* % (inc %)))))    ;; returns 42 after 2 seconds
 ```
 
-`(recover task f & args)` returns a task completing with result of given task if successful, otherwise applying f to the error along with optional extra arguments and succeeding with returned value.
+`then` chains can be flattened using macro `(tlet bindings & body)` providing let-style notation.
 ```clj
-(def failure (t/just (/ 1 0)))
-(def recover (t/recover failure (constantly :oops)))
-(failure println println)    ;; dumps ArithmeticException
-(recover println println)    ;; prints :oops
+(t/do!! (t/tlet [a (t/timeout 1000 6)
+                 b (t/timeout 1000 (inc a))]
+          (* a b)))                              ;; returns 42 after 2 seconds
 ```
 
-`(race & tasks)` returns a task running given tasks in parallel, completing with first succeeding result and cancelling late tasks.
+`(else task f & args)` returns a task completing with result of input task if successful, otherwise applying f to the error along with optional extra arguments. f must return a task that will be run to yield the final result.
 ```clj
-(def race (t/race (t/timeout 1000 :turtle) (t/timeout 2000 :rabbit)))
-(race println println)    ;; prints :turtle after 1 second
+(def failure (t/effect (/ 1 0)))
+(t/do!! failure)                                 ;; throws ArithmeticException
+(t/do!! (t/else failure t/success))              ;; returns ArithmeticException
 ```
 
 #### Writing custom combinators
@@ -113,7 +122,7 @@ When the task is started, boot function is first called with a fresh event wrapp
 
 The result of a handler function defines the task's current status. Throwing an exception signals task failure, returning the sentinel value `pending` signals the task is still waiting for an event, returning any other value signals task success. Success and failure trigger a call to their associated continuation and stop event processing, discarding subsequent events.
 
-Events occuring during execution of the boot function are delayed until the boot function returns. All handler functions wrapped by the same event wrapper will be run on a cpu-bound thread pool in a sequential way, so they may safely share unsynchronized mutable state.
+Events occuring during execution of the boot function are delayed until the boot function returns. All handler functions wrapped by the same event wrapper will be run on a cpu-bound thread pool sequentially, so they may safely share unsynchronized mutable state.
 
 `(task-via executor boot & args)` is a variant of `task` allowing to bind the event loop to a custom executor.
 
