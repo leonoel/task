@@ -37,14 +37,14 @@ Leiningen coordinates :
 [task "a.1"]
 ```
 
+### Support
+All functions and macros work the same on Clojure and Clojurescript, except for `effect-off` and `do!!` not working in Clojurescript because they require thread suspension.
+
 ### Documentation
 The API stands in the single namespace `task.core`.
 ```clj
 (require '[task.core :as t])
 ```
-
-### Support
-All functions and macros work the same on Clojure and Clojurescript, except for `effect-off` and `do!!` not working in Clojurescript because they require thread suspension.
 
 #### Task creation & usage
 `(success value)` and `(failure error)` return tasks completing immediately with given result.
