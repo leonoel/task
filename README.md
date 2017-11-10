@@ -2,7 +2,7 @@
 
 This project aims to define a standard to represent generic computations as values in Clojure. The goal is to promote functional programming by allowing various composition strategies around the unified *task* abstraction. A task is the definition of a process that can be started, eventually terminating with success or failure, producing a single value, and able to receive interruption requests. Tasks may be asynchronous, a mandatory requirement on single-threaded host platforms (e.g js engines, gui frameworks) and a good practice when high scalability is required.
 
-Along with the [specification](##Specification), a [toolkit](##Toolkit) is provided as a reference implementation to perform basic operations on tasks.
+Along with the [specification](#Specification), a [toolkit](#Toolkit) is provided as a reference implementation to perform basic operations on tasks.
 
 ## Rationale
 
