@@ -1,4 +1,4 @@
-(defproject task "a.1"
+(defproject task "a.2-SNAPSHOT"
   :description "Generic computation handling in Clojure"
   :url "https://github.com/leonoel/task"
   :license {:name "Eclipse Public License"

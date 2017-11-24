@@ -22,6 +22,12 @@
 (deftest failure
   (expect (t/failure error) ::failure))
 
+(deftest promise-success
+  (expect (let [p (t/promise)] (p (t/success 42)) p) 42))
+
+(deftest promise-failure
+  (expect (let [p (t/promise)] (p (t/failure error)) p) ::failure))
+
 (deftest do!-success
   (expect (t/do! (t/success 42)) 42))
 

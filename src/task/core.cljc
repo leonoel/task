@@ -1,4 +1,5 @@
 (ns task.core
+  (:refer-clojure :exclude [promise])
   (:require [task.host :as h]
             [plop.core :refer [place]])
   #?(:cljs (:require-macros [task.core :refer [safe]])))
@@ -39,30 +40,46 @@
   (assert (h/throwable? error))
   (fn [_ failure!] (failure! error) nop))
 
+
+(def cancelled (ex-info "Task cancelled." {}))
+
 (defn
-  ^{:arglists '([task])
-    :doc "Starts given task, memoizes result and returns a task always completing with that result."}
-  do! [t]
+  ^{:arglists '([task] [success! failure!])
+    :doc "Returns a completable and memoized task. The task completes with the first result of any task given to the extra 1-arity."}
+  promise []
   (let [a (atom {})
         c (fn [f]
             (fn [x]
               (let [s @a t (f x)]
                 (when (map? s)
                   (when (compare-and-set! a s t)
-                    (reduce-kv (fn [_ _ f] (f t)) nil s))))))]
-    (t (c success) (c failure))
-    (fn [success! failure!]
-      (loop []
-        (let [s @a]
-          (if (map? s)
-            (letfn [(! []
-                      (let [s @a]
-                        (when (map? s)
-                          (when-not (compare-and-set! a s (dissoc s !))
-                            (recur)))))]
-              (if (compare-and-set! a s (assoc s ! #(% success! failure!)))
-                ! (recur)))
-            (do (s success! failure!) nop)))))))
+                    (reduce-kv (fn [_ _ f] (f t)) nil s))))))
+        s! (c success)
+        f! (c failure)]
+    (fn
+      ([task] (task s! f!))
+      ([success! failure!]
+       (loop []
+         (let [s @a]
+           (if (map? s)
+             (letfn [(! []
+                       (let [s @a]
+                         (when (map? s)
+                           (if (compare-and-set! a s (dissoc s !))
+                             (failure! cancelled)
+                             (recur)))))]
+               (if (compare-and-set! a s (assoc s ! #(% success! failure!)))
+                 ! (recur)))
+             (do (s success! failure!) nop))))))))
+
+(defn
+  ^{:arglists '([task])
+    :doc "Starts given task, memoizes result and returns a task always completing with that result."}
+  do! [t]
+  (let [p (promise) ! (p t)]
+    (fn
+      ([] (!))
+      ([s f] (p s f)))))
 
 (def
   ^{:arglists '([task])
