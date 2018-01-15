@@ -74,14 +74,22 @@ Blocking effects should be wrapped using macro `(effect-off & body)`, performing
 ((t/timeout 1000 42) prn err)          ;; prints 42 after 1 second
 ```
 
-Tasks are lazy by default, but can be realized and memoized with `(do! task)` to provide future-like behaviour.
+When memoization is needed, `(promise)` creates a fresh, single-assignment, stateful container against which external tasks can be run. The first completing task will complete the promise, effectively making it a pure value. The promise itself is a task eventually completing with its memoized value.
+```clj
+(def prom (t/promise))
+(prom prn err)                         ;; promise is not completed yet, nothing is printed but callback is registered
+(prom (t/success 42))                  ;; promise is now completed, previously registered callbacks are run, 42 is printed
+(prom prn err)                         ;; promise is completed, callback is run immediately, 42 is printed
+```
+
+`(t/do! task)` runs a task against a fresh promise to return another task always returning the same memoized result, making it similar to a future.
 ```clj
 (def not-so-random (t/do! random))
 (not-so-random prn err)                ;; prints a random number
 (not-so-random prn err)                ;; prints the same number
 ```
 
-`(do!! task)` realizes a task synchronously, blocking calling thread until completion.
+`(do!! task)` runs a task synchronously, blocking calling thread until completion. This helper is mainly a convenience for REPL experimentation, as thread blocking is what we want to avoid.
 ```clj
 (t/do!! random)                        ;; returns a random number
 ```
