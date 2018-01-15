@@ -35,7 +35,7 @@ Artifacts are released to clojars.
 
 Leiningen coordinates :
 ```clj
-[task "a.1"]
+[task "a.2"]
 ```
 
 ### Support
