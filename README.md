@@ -117,6 +117,25 @@ When memoization is needed, `(promise)` creates a fresh, single-assignment, stat
           (* a b)))                              ;; returns 42 after 2 seconds
 ```
 
+`tlet` returns a function that will cancel the task chain.
+For example, given this task
+
+```clj
+(def t
+  (t/tlet [a (t/timeout 1000 6)
+           b (t/timeout 1000 (inc a))]
+    (prn :done)
+    (* a b)))
+```
+
+The following code does not print `:done`
+
+```clj
+(let [cancel! (t prn prn)]
+  (Thread/sleep 1000)
+  (cancel!))
+```
+
 `(else task f & args)` returns a task completing with result of input task if successful, otherwise applying f to the error along with optional extra arguments. f must return a task that will be run to yield the final result.
 ```clj
 (def failure (t/effect (/ 1 0)))
