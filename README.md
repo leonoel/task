@@ -27,7 +27,7 @@ A task is a 2-arity function taking a success continuation as first argument and
 A continuation is a 1-arity function taking the result of the task as argument. Its return value should be ignored, it must not throw and must not block the calling thread. A call to any of both continuations notify termination to the caller, and the behavior of subsequent calls is undefined. A continuation may be called synchronously with the task call if result is immediately available.
 
 ### Canceller
-A canceller is a 0-arity function. Its return value should be ignored, it must not throw and must not block the calling thread. A call to this function notifies the task executor that the caller wants the operation to be terminated as soon as possible. Cancellation is a best-effort operation and it is up to the task designer to explicit its cancellation strategy. Calls to a canceller are expected to be idempotent, eventually becoming no-ops when execution terminates.
+A canceller is a 0-arity function. Its return value should be ignored, it must not throw and must not block the calling thread. A call to this function notifies the task executor that the caller wants the operation to be terminated as soon as possible. Cancellation is a best-effort operation and it is up to the task designer to be explicit in its cancellation strategy. Calls to a canceller are expected to be idempotent, eventually becoming no-ops when execution terminates.
 
 
 ## Examples
